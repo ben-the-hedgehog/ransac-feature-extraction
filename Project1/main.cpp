@@ -50,7 +50,7 @@ vector<Point> pickNRandom(const vector<Point>& points, int n) {
 	return results;
 }
 
-vector<Sline> lineRansac(const Mat& edges, int thresh, int max_iter) {
+vector<Sline> lineRansac(const Mat& edges, int thresh, int max_iter, float ratio=0.7) {
 	//store points in a set
 	vector<Point> points;
 	vector<Sline> results;
@@ -66,9 +66,9 @@ vector<Sline> lineRansac(const Mat& edges, int thresh, int max_iter) {
 	} //end for
 
 	int points_seen = 0;
-	while (points_seen < 0.9 * total_points) {
+	while (points_seen < ratio * total_points) {
 		Sline best_line;
-		vector<Point> inliers;
+		vector<Point> inliers, best_inliers;
 		int best_count = 0;
 
 		for (int i = 0; i < max_iter; i++) {
@@ -88,6 +88,7 @@ vector<Sline> lineRansac(const Mat& edges, int thresh, int max_iter) {
 			if (inliers.size() > best_count) {
 				best_line = line;
 				best_count = inliers.size();
+				best_inliers = inliers;
 			}
 
 			inliers.clear();
@@ -99,8 +100,17 @@ vector<Sline> lineRansac(const Mat& edges, int thresh, int max_iter) {
 		//update points_seen
 		points_seen += best_count;
 		//remove inliers from points set
-		for (Point p : inliers) {
-			remove(points.begin(), points.end(), p);
+		vector<Point>::const_iterator it;
+		for (int k = 0; k < best_inliers.size();k++) {
+			it = points.begin();
+			Point p = best_inliers[k];
+			for (int i = 0; i < points.size(); i++) {
+				if (points[i] == p) {
+					advance(it, i);
+					points.erase(it);
+					break;
+				}
+			}
 		}
 
 	} //end while
@@ -172,7 +182,7 @@ int main(int argc, char **argv)
 	srand(69);
 
 	Mat colorImage, greyImage, edges;
-	colorImage = imread("C:\\Users\\BenPa\\Documents\\OpenCV_Projects\\Lab3\\seaside.jpg");
+	colorImage = imread("images\\seaside.jpg");
 	cvtColor(colorImage, greyImage, COLOR_BGR2GRAY);
 	//blur(greyImage, greyImage, Size(2, 2));
 	int avg = getMean(greyImage);
@@ -181,15 +191,14 @@ int main(int argc, char **argv)
 
 	Canny(greyImage, edges, lowerThresh, upperThresh);
 
-	vector<Sline> lines = lineRansac(edges, 5, 50);
-	Mat lineImg = Mat::zeros(edges.rows, edges.cols, CV_8UC3);
-	drawLines2(lineImg, lines);
+	vector<Sline> lines = lineRansac(edges, 3, 100);
+	drawLines(colorImage, lines);
 
 	namedWindow("seaside");
 	imshow("seaside", edges);
 
 	namedWindow("seaside-lines");
-	imshow("seaside-lines", lineImg);
+	imshow("seaside-lines", colorImage);
 
 	waitKey(0);
 
