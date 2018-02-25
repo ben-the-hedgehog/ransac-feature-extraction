@@ -3,6 +3,8 @@
 #include <cstdio>
 #include "opencv2/opencv.hpp"
 
+#define PI 3.14159
+
 using namespace cv;
 using namespace std;
 
@@ -15,6 +17,36 @@ struct Sline {
 	}
 	Sline(const Point& p1, const Point& p2) : a(p1) , b(p2) {}
 };
+
+struct Circle {
+	//represents a circle via centre and radius
+	Point centre;
+	int radius;
+
+	Circle() {
+		centre = Point(0, 0);
+		radius = 0;
+	}
+
+	Circle(const Point& p, const int& r) : centre(p), radius(r) {}
+
+	Circle(Point p1, Point p2, Point p3) {
+		double A = p1.x * (p2.y - p3.y) - p1.y*(p2.x - p3.x) + p2.x * p3.y + p3.x * p2.y;
+		double B = (p1.x * p1.x + p1.y * p1.y) * (p3.y - p2.y) + (p2.x * p2.x + p2.y * p2.y) * (p3.y - p1.y)
+			+ (p3.x * p3.x + p3.y * p3.y) * (p2.y - p1.y);
+		double C = (p1.x * p1.x + p1.y * p1.y) * (p2.x - p3.x) + (p2.x*p2.x + p2.y*p2.y) * (p3.x - p1.x)
+			+ (p3.x*p3.x + p3.y*p3.y) * (p1.x - p2.x);
+
+		int x = -B / (2 * A);
+		int y = -C / (2 * A);
+		centre = Point(x, y);
+		radius = sqrt(pow(x - p1.x, 2) + pow(y - p1.y, 2));
+	}
+};
+
+int dist2Circle(const Circle& c, const Point& p) {
+	return abs(sqrt(pow(p.x, 2) + pow(p.y, 2)) - c.radius);
+}
 
 int normalDist(const Sline& l, const Point& p) {
 	int x0 = p.x, y0 = p.y, x1 = l.a.x, y1 = l.a.y, x2 = l.b.x, y2 = l.b.y;
@@ -47,6 +79,70 @@ vector<Point> pickNRandom(const vector<Point>& points, int n) {
 			results.push_back(p);
 	}
 
+	return results;
+}
+
+vector<Circle> circleRansac(const Mat& edges, int thresh, int max_iter, float ratio = 0.7) {
+	//store points
+	vector<Point> points;
+	vector<Circle> results;
+	int total_points = 0;
+
+	for(int row = 0; row < edges.rows; row++) {
+		for (int col = 0; col < edges.cols; col++) {
+			if (edges.at<uchar>(row, col)) {
+				points.push_back(Point(col, row));
+				total_points++;
+			}
+		}
+	} //end for
+
+	int points_seen = 0;
+	int limit = ratio * total_points;
+	while (points_seen < limit) {
+		Circle best_circle;
+		vector<Point> inliers, best_inliers;
+		int best_count = 0;
+
+		for (int i = 0; i < max_iter; i++) {
+			//pick 3 random points
+			vector<Point> three_random = pickNRandom(points, 3);
+			Circle circ = Circle(three_random[0], three_random[1], three_random[2]);
+
+			//find all inlier points
+			for (int j = 0; j < points.size(); j++) {
+				Point p = points[j];
+				if (dist2Circle(circ, p) <= thresh) {
+					inliers.push_back(p);
+				}
+			} // end for
+
+			if (inliers.size() > best_count) {
+				best_count = inliers.size();
+				best_circle = circ;
+				best_inliers = inliers;
+			}
+
+			inliers.clear();
+		} //end for max_iter
+
+		results.push_back(best_circle);
+		//update points_seen
+		points_seen += best_count;
+		//remove inliers from points set
+		vector<Point>::const_iterator it;
+		for (int k = 0; k < best_inliers.size(); k++) {
+			it = points.begin();
+			Point p = best_inliers[k];
+			for (int i = 0; i < points.size(); i++) {
+				if (points[i] == p) {
+					advance(it, i);
+					points.erase(it);
+					break;
+				}
+			}
+		}
+	}//end while points_seen
 	return results;
 }
 
@@ -177,6 +273,20 @@ void drawLines2(Mat& image, const vector<Sline>& lines) {
 	}//end for
 }
 
+void drawCircle(Mat& image, const vector<Circle>& circles) {
+	for (Circle c : circles) {
+		for (double theta = 0.0; theta < 2 * PI; theta += 0.01) {
+			int x = c.centre.x + c.radius * cos(theta);
+			int y = c.centre.y + c.radius * sin(theta);
+			if (x >= 0 && x < image.cols && y >= 0 && y < image.rows) {
+				image.at<Vec3b>(Point(x, y))[0] = 0;
+				image.at<Vec3b>(Point(x, y))[1] = 0;
+				image.at<Vec3b>(Point(x, y))[2] = 255;
+			}
+		}
+	}
+}
+
 int main(int argc, char **argv)
 {
 	srand(69);
@@ -191,8 +301,11 @@ int main(int argc, char **argv)
 
 	Canny(greyImage, edges, lowerThresh, upperThresh);
 
-	vector<Sline> lines = lineRansac(edges, 3, 100);
-	drawLines(colorImage, lines);
+	//vector<Sline> lines = lineRansac(edges, 3, 100);
+	//drawLines(colorImage, lines);
+
+	vector<Circle> circles = circleRansac(edges, 3, 100);
+	drawCircle(colorImage, circles);
 
 	namedWindow("seaside");
 	imshow("seaside", edges);
