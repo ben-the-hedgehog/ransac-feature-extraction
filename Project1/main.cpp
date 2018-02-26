@@ -304,7 +304,7 @@ int main(int argc, char **argv)
 	//vector<Sline> lines = lineRansac(edges, 3, 100);
 	//drawLines(colorImage, lines);
 
-	vector<Circle> circles = circleRansac(edges, 3, 100);
+	vector<Circle> circles = circleRansac(edges, 3, 500, 0.9);
 	drawCircle(colorImage, circles);
 
 	namedWindow("seaside");
