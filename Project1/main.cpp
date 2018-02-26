@@ -31,8 +31,8 @@ struct Circle {
 	Circle(const Point& p, const int& r) : centre(p), radius(r) {}
 
 	Circle(Point p1, Point p2, Point p3) {
-		double A = p1.x * (p2.y - p3.y) - p1.y*(p2.x - p3.x) + p2.x * p3.y + p3.x * p2.y;
-		double B = (p1.x * p1.x + p1.y * p1.y) * (p3.y - p2.y) + (p2.x * p2.x + p2.y * p2.y) * (p3.y - p1.y)
+		double A = p1.x * (p2.y - p3.y) - p1.y*(p2.x - p3.x) + p2.x * p3.y - p3.x * p2.y;
+		double B = (p1.x * p1.x + p1.y * p1.y) * (p3.y - p2.y) + (p2.x * p2.x + p2.y * p2.y) * (p1.y - p3.y)
 			+ (p3.x * p3.x + p3.y * p3.y) * (p2.y - p1.y);
 		double C = (p1.x * p1.x + p1.y * p1.y) * (p2.x - p3.x) + (p2.x*p2.x + p2.y*p2.y) * (p3.x - p1.x)
 			+ (p3.x*p3.x + p3.y*p3.y) * (p1.x - p2.x);
@@ -45,7 +45,7 @@ struct Circle {
 };
 
 int dist2Circle(const Circle& c, const Point& p) {
-	return abs(sqrt(pow(p.x, 2) + pow(p.y, 2)) - c.radius);
+	return abs(sqrt(pow(c.centre.x - p.x, 2) + pow(c.centre.y - p.y, 2)) - c.radius);
 }
 
 int normalDist(const Sline& l, const Point& p) {
@@ -275,7 +275,7 @@ void drawLines2(Mat& image, const vector<Sline>& lines) {
 
 void drawCircle(Mat& image, const vector<Circle>& circles) {
 	for (Circle c : circles) {
-		for (double theta = 0.0; theta < 2 * PI; theta += 0.01) {
+		for (double theta = 0.0; theta < 2 * PI; theta += 0.001) {
 			int x = c.centre.x + c.radius * cos(theta);
 			int y = c.centre.y + c.radius * sin(theta);
 			if (x >= 0 && x < image.cols && y >= 0 && y < image.rows) {
@@ -292,7 +292,7 @@ int main(int argc, char **argv)
 	srand(69);
 
 	Mat colorImage, greyImage, edges;
-	colorImage = imread("images\\seaside.jpg");
+	colorImage = imread("images\\concentric_circles.jpg");
 	cvtColor(colorImage, greyImage, COLOR_BGR2GRAY);
 	//blur(greyImage, greyImage, Size(2, 2));
 	int avg = getMean(greyImage);
